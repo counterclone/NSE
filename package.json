@@ -1,0 +1,45 @@
+{
+  "name": "nse-invest-api-tools",
+  "version": "1.0.0",
+  "description": "Tools for integrating with NSE Invest API platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "client": "cd client && npm start",
+    "server": "nodemon server.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "cd client && npm run build",
+    "install-client": "cd client && npm install",
+    "install-all": "npm install && npm run install-client",
+    "test": "node test-nse-api.js",
+    "check-tls": "node check-tls.js"
+  },
+  "keywords": [
+    "nse",
+    "api",
+    "invest",
+    "mutual-funds"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^7.1.0",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "mongodb": "^6.16.0",
+    "mongoose": "^8.15.0",
+    "react-router-dom": "^7.6.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}
