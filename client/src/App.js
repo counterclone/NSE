@@ -8,7 +8,6 @@ import UCCRegistrationForm from './components/UCCRegistrationForm';
 import OrderStatusReport from './components/OrderStatusReport';
 import OrderCancellation from './components/OrderCancellation';
 import SchemeMasterDownload from './components/SchemeMasterDownload';
-import Clients from './components/Clients';
 import api from './services/api';
 
 function App() {
@@ -163,14 +162,6 @@ function App() {
                     Scheme Master
                   </button>
                 </li>
-                <li className="nav-item">
-                  <button
-                    className={`nav-link ${activeTab === 'clients' ? 'active' : ''}`}
-                    onClick={() => handleTabChange('clients')}
-                  >
-                    Clients
-                  </button>
-                </li>
               </ul>
             </div>
           </div>
@@ -240,10 +231,6 @@ function App() {
             <SchemeMasterDownload />
           </div>
         </div>
-      )}
-      
-      {activeTab === 'clients' && (
-        <Clients />
       )}
       
       {response && activeTab !== 'report' && activeTab !== 'cancel' && activeTab !== 'scheme' && (

@@ -1,6 +1,8 @@
 [
-  { "clientCode": "F12345", "firstName": "First1", "lastName": "Last1", "email": "f12345@example.com" },
-  { "clientCode": "F12346", "firstName": "First2", "lastName": "Last2", "email": "f12346@example.com" },
-  { "clientCode": "G12345", "firstName": "First3", "lastName": "Last3", "email": "g12345@example.com" },
-  { "clientCode": "H34567", "firstName": "First4", "lastName": "Last4", "email": "h34567@example.com" }
-] 
+  {
+    "clientCode": "H34568",
+    "firstName": "Devansh",
+    "lastName": "Gupta",
+    "email": "devansh2102003@gmail.com"
+  }
+]

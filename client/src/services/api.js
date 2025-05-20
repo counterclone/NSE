@@ -48,9 +48,7 @@ const api = {
   
   getSchemeMasterFiles: () => {
     return axios.get(`${API_URL}/scheme-master-files`);
-  },
-
-  getClients: () => axios.get('/api/clients')
+  }
 };
 
 export default api; 

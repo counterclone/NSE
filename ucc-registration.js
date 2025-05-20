@@ -74,7 +74,7 @@ const generateUccPayload = (clientDetails) => {
       default_bank_flag_1: "Y",
       cheque_name: "John Doe",
       div_pay_mode: "03",
-      communication_mode:"E",
+      communication_mode: "P",
       email: clientDetails.email,                               // Mandatory, 50 chars
       mobile_declaration_flag: "SE",
       email_declaration_flag: "SE",                             // Optional
@@ -84,14 +84,12 @@ const generateUccPayload = (clientDetails) => {
       pincode: clientDetails.pincode,                          // Mandatory, 6 chars
       country: clientDetails.country,                          // Mandatory, 35 chars
       resi_phone: clientDetails.phone,                         // Optional, 15 chars
-      communication_mode: "P",                                 // Mandatory, P=Physical/E=Email/M=Mobile
       indian_mobile_no: clientDetails.mobileNo,                // Conditional Mandatory for Indian
       paperless_flag: "Z",                                     // Mandatory (P=Paper/E=Paperless)
       nomination_opt: clientDetails.nominationOpt || "N",      // Optional Y/N
       primary_holder_kyc_type: "K",                           // Mandatory, 1 char
       primary_holder_ckyc_number: clientDetails.ckycNumber,   // Conditional Mandatory if KYC type C
-      aadhaar_updated: "Y",                                   // Optional Y/N
-      client_type: "P"                                        // Mandatory D/P (Demat/Physical)
+      aadhaar_updated: "Y"                                   // Optional Y/N
     }]
   };
 };
@@ -166,20 +164,25 @@ const testUccRegistration = async () => {
     console.log('Registration API Response Data:', JSON.stringify(registrationResponse.data, null, 2));
     
   } catch (error) {
-    console.error('API Error:');
+    console.error('UCC Registration Failed!');
+    console.error('=========================');
     if (error.response) {
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
-      console.error('Status:', error.response.status);
-      console.error('Headers:', error.response.headers);
-      console.error('Data:', error.response.data);
+      console.error('Status Code:', error.response.status);
+      console.error('Response Headers:', JSON.stringify(error.response.headers, null, 2));
+      console.error('Response Data:', JSON.stringify(error.response.data, null, 2));
+      console.error('Full Error Details:', error.response.data?.message || error.response.data);
     } else if (error.request) {
       // The request was made but no response was received
-      console.error('No response received:', error.request);
+      console.error('No response received from server');
+      console.error('Request details:', error.request);
     } else {
       // Something happened in setting up the request that triggered an Error
-      console.error('Error:', error.message);
+      console.error('Error setting up the request:', error.message);
     }
+    console.error('=========================');
+    throw new Error('UCC registration failed. Check console for details.');
   }
 };
 

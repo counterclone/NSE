@@ -522,13 +522,6 @@ app.post('/api/register-ucc', async (req, res) => {
         success: true,
         data: registrationResponse.data
       });
-      // Save client code
-      const { clientCode, firstName, lastName, email } = clientDetails;
-      const clients = readClients();
-      if (!clients.find(c => c.clientCode === clientCode)) {
-        clients.push({ clientCode, firstName, lastName, email });
-        writeClients(clients);
-      }
     } catch (apiError) {
       console.error('API Error:');
       
@@ -558,13 +551,6 @@ app.post('/api/register-ucc', async (req, res) => {
             timestamp: new Date().toISOString()
           }
         });
-        // Save client code (simulated)
-        const { clientCode, firstName, lastName, email } = clientDetails;
-        const clients = readClients();
-        if (!clients.find(c => c.clientCode === clientCode)) {
-          clients.push({ clientCode, firstName, lastName, email });
-          writeClients(clients);
-        }
       } else {
         console.error('Error:', apiError.message);
         
@@ -879,45 +865,4 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-});
-
-const CLIENTS_FILE = path.join(__dirname, 'clients.json');
-
-// Helper to read clients from file
-function readClients() {
-  try {
-    if (!fs.existsSync(CLIENTS_FILE)) return [];
-    const data = fs.readFileSync(CLIENTS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (e) {
-    console.error('Error reading clients.json:', e);
-    return [];
-  }
-}
-
-// Helper to write clients to file
-function writeClients(clients) {
-  try {
-    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(clients, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Error writing clients.json:', e);
-  }
-}
-
-// API endpoint to get all registered clients
-app.get('/api/clients', (req, res) => {
-  const clients = readClients();
-  res.json({ success: true, clients });
-});
-
-// API endpoint to add a client (used internally)
-app.post('/api/clients', (req, res) => {
-  const { clientCode, firstName, lastName, email } = req.body;
-  if (!clientCode) return res.status(400).json({ success: false, error: 'clientCode is required' });
-  const clients = readClients();
-  if (!clients.find(c => c.clientCode === clientCode)) {
-    clients.push({ clientCode, firstName, lastName, email });
-    writeClients(clients);
-  }
-  res.json({ success: true });
 }); 

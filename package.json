@@ -23,17 +23,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/material": "^7.1.0",
     "axios": "^1.6.2",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "mongodb": "^6.16.0",
-    "mongoose": "^8.15.0",
-    "react-router-dom": "^7.6.0"
+    "express": "^5.1.0"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
