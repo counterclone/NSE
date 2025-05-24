@@ -6,9 +6,19 @@ const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
 const path = require('path');
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+// Import MongoDB connection and models
+const connectDB = require('./models/db');
+const UccRegistration = require('./models/UccRegistration');
+const OrderEntry = require('./models/OrderEntry');
 
 // Import scheme master download functionality
 const { downloadSchemeMaster, parseSchemeMasterFile } = require('./scheme-master-download');
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -349,6 +359,48 @@ app.post('/api/process-order', async (req, res) => {
       console.log('Order API Response Status:', orderResponse.status);
       console.log('Order API Response Data:', JSON.stringify(orderResponse.data, null, 2));
       
+      // Store the order entry data in MongoDB
+      try {
+        const orderDetails = orderResponse.data.transaction_details[0];
+        const orderEntry = new OrderEntry({
+          order_ref_number: orderPayload.transaction_details[0].order_ref_number,
+          scheme_code: orderPayload.transaction_details[0].scheme_code,
+          trxn_type: orderPayload.transaction_details[0].trxn_type,
+          buy_sell_type: orderPayload.transaction_details[0].buy_sell_type,
+          client_code: orderPayload.transaction_details[0].client_code,
+          demat_physical: orderPayload.transaction_details[0].demat_physical,
+          order_amount: orderPayload.transaction_details[0].order_amount,
+          folio_no: orderPayload.transaction_details[0].folio_no,
+          remarks: orderPayload.transaction_details[0].remarks,
+          kyc_flag: orderPayload.transaction_details[0].kyc_flag,
+          sub_broker_code: orderPayload.transaction_details[0].sub_broker_code,
+          euin_number: orderPayload.transaction_details[0].euin_number,
+          euin_declaration: orderPayload.transaction_details[0].euin_declaration,
+          min_redemption_flag: orderPayload.transaction_details[0].min_redemption_flag,
+          dpc_flag: orderPayload.transaction_details[0].dpc_flag,
+          all_units: orderPayload.transaction_details[0].all_units,
+          redemption_units: orderPayload.transaction_details[0].redemption_units,
+          sub_broker_arn: orderPayload.transaction_details[0].sub_broker_arn,
+          bank_ref_no: orderPayload.transaction_details[0].bank_ref_no,
+          account_no: orderPayload.transaction_details[0].account_no,
+          mobile_no: orderPayload.transaction_details[0].mobile_no,
+          email: orderPayload.transaction_details[0].email,
+          mandate_id: orderPayload.transaction_details[0].mandate_id,
+          send_2fa: orderPayload.transaction_details[0].send_2fa,
+          send_comm: orderPayload.transaction_details[0].send_comm,
+          trxn_order_id: orderResponse.data.transaction_details[0]?.trxn_order_id || '',
+          trxn_status: orderResponse.data.transaction_details[0]?.trxn_status || 'PENDING',
+          trxn_remark: orderResponse.data.transaction_details[0]?.trxn_remark || '',
+          filler1: orderPayload.transaction_details[0].filler1
+        });
+        
+        await orderEntry.save();
+        console.log('Order Entry saved to MongoDB');
+      } catch (dbError) {
+        console.error('Failed to save order entry to MongoDB:', dbError.message);
+        // Continue with the response even if MongoDB save fails
+      }
+      
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -376,18 +428,41 @@ app.post('/api/process-order', async (req, res) => {
         
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
+        
+        // Create simulated response
+        const simulatedResponse = {
+          message: "Order processed successfully (simulated)",
+          order_id: `ORD${Date.now()}`,
+          scheme_code: schemeCode,
+          amount: amount,
+          client_code: clientCode,
+          status: "PENDING",
+          timestamp: new Date().toISOString()
+        };
+        
+        // Store the simulated order in MongoDB
+        try {
+          const orderEntry = new OrderEntry({
+            requestPayload: orderPayload,
+            responseData: simulatedResponse,
+            orderRefNumber: orderPayload.transaction_details[0].order_ref_number,
+            clientCode: clientCode,
+            schemeCode: schemeCode,
+            amount: parseFloat(amount),
+            status: 'SIMULATED'
+          });
+          
+          await orderEntry.save();
+          console.log('Simulated Order Entry saved to MongoDB');
+        } catch (dbError) {
+          console.error('Failed to save simulated order entry to MongoDB:', dbError.message);
+          // Continue with the response even if MongoDB save fails
+        }
+        
         res.json({
           success: true,
           simulated: true,
-          data: {
-            message: "Order processed successfully (simulated)",
-            order_id: `ORD${Date.now()}`,
-            scheme_code: schemeCode,
-            amount: amount,
-            client_code: clientCode,
-            status: "PENDING",
-            timestamp: new Date().toISOString()
-          }
+          data: simulatedResponse
         });
       } else {
         // Something happened in setting up the request that triggered an Error
@@ -517,6 +592,173 @@ app.post('/api/register-ucc', async (req, res) => {
       console.log('Registration API Response Status:', registrationResponse.status);
       console.log('Registration API Response Data:', JSON.stringify(registrationResponse.data, null, 2));
       
+      // Store the registration data in MongoDB
+      try {
+        const regDetails = uccPayload.reg_details[0];
+        const uccRegistration = new UccRegistration({
+          client_code: regDetails.client_code,
+          primary_holder_first_name: regDetails.primary_holder_first_name,
+          primary_holder_middle_name: regDetails.primary_holder_middle_name,
+          primary_holder_last_name: regDetails.primary_holder_last_name,
+          tax_status: regDetails.tax_status,
+          gender: regDetails.gender,
+          primary_holder_dob_incorporation: regDetails.primary_holder_dob_incorporation,
+          occupation_code: regDetails.occupation_code,
+          holding_nature: regDetails.holding_nature,
+          second_holder_first_name: regDetails.second_holder_first_name || '',
+          second_holder_middle_name: regDetails.second_holder_middle_name || '',
+          second_holder_last_name: regDetails.second_holder_last_name || '',
+          third_holder_first_name: regDetails.third_holder_first_name || '',
+          third_holder_middle_name: regDetails.third_holder_middle_name || '',
+          third_holder_last_name: regDetails.third_holder_last_name || '',
+          second_holder_dob: regDetails.second_holder_dob || '',
+          third_holder_dob: regDetails.third_holder_dob || '',
+          guardian_first_name: regDetails.guardian_first_name || '',
+          guardian_middle_name: regDetails.guardian_middle_name || '',
+          guardian_last_name: regDetails.guardian_last_name || '',
+          guardian_dob: regDetails.guardian_dob || '',
+          primary_holder_pan_exempt: regDetails.primary_holder_pan_exempt,
+          second_holder_pan_exempt: regDetails.second_holder_pan_exempt || '',
+          third_holder_pan_exempt: regDetails.third_holder_pan_exempt || '',
+          guardian_pan_exempt: regDetails.guardian_pan_exempt || '',
+          primary_holder_pan: regDetails.primary_holder_pan,
+          second_holder_pan: regDetails.second_holder_pan || '',
+          third_holder_pan: regDetails.third_holder_pan || '',
+          guardian_pan: regDetails.guardian_pan || '',
+          primary_holder_exempt_category: regDetails.primary_holder_exempt_category || '',
+          second_holder_exempt_category: regDetails.second_holder_exempt_category || '',
+          third_holder_exempt_category: regDetails.third_holder_exempt_category || '',
+          guardian_exempt_category: regDetails.guardian_exempt_category || '',
+          client_type: regDetails.client_type,
+          pms: regDetails.pms || '',
+          default_dp: regDetails.default_dp,
+          cdsl_dpid: regDetails.cdsl_dpid || '',
+          cdslcltid: regDetails.cdslcltid || '',
+          cmbp_id: regDetails.cmbp_id || '',
+          nsdldpid: regDetails.nsdldpid || '',
+          nsdlcltid: regDetails.nsdlcltid || '',
+          account_type_1: regDetails.account_type_1,
+          account_no_1: regDetails.account_no_1,
+          micr_no_1: regDetails.micr_no_1 || '',
+          ifsc_code_1: regDetails.ifsc_code_1,
+          default_bank_flag_1: regDetails.default_bank_flag_1,
+          account_type_2: regDetails.account_type_2 || '',
+          account_no_2: regDetails.account_no_2 || '',
+          micr_no_2: regDetails.micr_no_2 || '',
+          ifsc_code_2: regDetails.ifsc_code_2 || '',
+          default_bank_flag_2: regDetails.default_bank_flag_2 || '',
+          account_type_3: regDetails.account_type_3 || '',
+          account_no_3: regDetails.account_no_3 || '',
+          micr_no_3: regDetails.micr_no_3 || '',
+          ifsc_code_3: regDetails.ifsc_code_3 || '',
+          default_bank_flag_3: regDetails.default_bank_flag_3 || '',
+          account_type_4: regDetails.account_type_4 || '',
+          account_no_4: regDetails.account_no_4 || '',
+          micr_no_4: regDetails.micr_no_4 || '',
+          ifsc_code_4: regDetails.ifsc_code_4 || '',
+          default_bank_flag_4: regDetails.default_bank_flag_4 || '',
+          account_type_5: regDetails.account_type_5 || '',
+          account_no_5: regDetails.account_no_5 || '',
+          micr_no_5: regDetails.micr_no_5 || '',
+          ifsc_code_5: regDetails.ifsc_code_5 || '',
+          default_bank_flag_5: regDetails.default_bank_flag_5 || '',
+          cheque_name: regDetails.cheque_name,
+          div_pay_mode: regDetails.div_pay_mode,
+          address_1: regDetails.address_1 || '',
+          address_2: regDetails.address_2 || '',
+          address_3: regDetails.address_3 || '',
+          city: regDetails.city,
+          state: regDetails.state,
+          pincode: regDetails.pincode,
+          country: regDetails.country,
+          resi_phone: regDetails.resi_phone || '',
+          resi_fax: regDetails.resi_fax || '',
+          office_phone: regDetails.office_phone || '',
+          office_fax: regDetails.office_fax || '',
+          email: regDetails.email,
+          communication_mode: regDetails.communication_mode,
+          foreign_address_1: regDetails.foreign_address_1 || '',
+          foreign_address_2: regDetails.foreign_address_2 || '',
+          foreign_address_3: regDetails.foreign_address_3 || '',
+          foreign_address_city: regDetails.foreign_address_city || '',
+          foreign_address_pincode: regDetails.foreign_address_pincode || '',
+          foreign_address_state: regDetails.foreign_address_state || '',
+          foreign_address_country: regDetails.foreign_address_country || '',
+          foreign_address_resi_phone: regDetails.foreign_address_resi_phone || '',
+          foreign_address_fax: regDetails.foreign_address_fax || '',
+          foreign_address_off_phone: regDetails.foreign_address_off_phone || '',
+          foreign_address_off_fax: regDetails.foreign_address_off_fax || '',
+          indian_mobile_no: regDetails.indian_mobile_no || '',
+          nominee_1_name: regDetails.nominee_1_name || '',
+          nominee_1_relationship: regDetails.nominee_1_relationship || '',
+          nominee_1_applicable: regDetails.nominee_1_applicable || '',
+          nominee_1_minor_flag: regDetails.nominee_1_minor_flag || '',
+          nominee_1_dob: regDetails.nominee_1_dob || '',
+          nominee_1_guardian: regDetails.nominee_1_guardian || '',
+          nominee_2_name: regDetails.nominee_2_name || '',
+          nominee_2_relationship: regDetails.nominee_2_relationship || '',
+          nominee_2_applicable: regDetails.nominee_2_applicable || '',
+          nominee_2_dob: regDetails.nominee_2_dob || '',
+          nominee_2_minor_flag: regDetails.nominee_2_minor_flag || '',
+          nominee_2_guardian: regDetails.nominee_2_guardian || '',
+          nominee_3_name: regDetails.nominee_3_name || '',
+          nominee_3_relationship: regDetails.nominee_3_relationship || '',
+          nominee_3_applicable: regDetails.nominee_3_applicable || '',
+          nominee_3_dob: regDetails.nominee_3_dob || '',
+          nominee_3_minor_flag: regDetails.nominee_3_minor_flag || '',
+          nominee_3_guardian: regDetails.nominee_3_guardian || '',
+          primary_holder_kyc_type: regDetails.primary_holder_kyc_type,
+          primary_holder_ckyc_number: regDetails.primary_holder_ckyc_number || '',
+          second_holder_kyc_type: regDetails.second_holder_kyc_type || '',
+          second_holder_ckyc_number: regDetails.second_holder_ckyc_number || '',
+          third_holder_kyc_type: regDetails.third_holder_kyc_type || '',
+          third_holder_ckyc_number: regDetails.third_holder_ckyc_number || '',
+          guardian_kyc_type: regDetails.guardian_kyc_type || '',
+          guardian_ckyc_number: regDetails.guardian_ckyc_number || '',
+          primary_holder_kra_exempt_ref_no: regDetails.primary_holder_kra_exempt_ref_no || '',
+          second_holder_kra_exempt_ref_no: regDetails.second_holder_kra_exempt_ref_no || '',
+          third_holder_kra_exempt_ref_no: regDetails.third_holder_kra_exempt_ref_no || '',
+          guardian_exempt_ref_no: regDetails.guardian_exempt_ref_no || '',
+          aadhaar_updated: regDetails.aadhaar_updated,
+          mapin_id: regDetails.mapin_id || '',
+          paperless_flag: regDetails.paperless_flag,
+          lei_no: regDetails.lei_no || '',
+          lei_validity: regDetails.lei_validity || '',
+          mobile_declaration_flag: regDetails.mobile_declaration_flag,
+          email_declaration_flag: regDetails.email_declaration_flag,
+          nomination_opt: regDetails.nomination_opt,
+          nomination_authentication: regDetails.nomination_authentication || '',
+          nominee_1_pan: regDetails.nominee_1_pan || '',
+          nominee_1_guardian_pan: regDetails.nominee_1_guardian_pan || '',
+          nominee_2_pan: regDetails.nominee_2_pan || '',
+          nominee_2_guardian_pan: regDetails.nominee_2_guardian_pan || '',
+          nominee_3_pan: regDetails.nominee_3_pan || '',
+          nominee_3_guardian_pan: regDetails.nominee_3_guardian_pan || '',
+          second_holder_email: regDetails.second_holder_email || '',
+          second_holder_email_declaration: regDetails.second_holder_email_declaration || '',
+          second_holder_mobile: regDetails.second_holder_mobile || '',
+          second_holder_mobile_declaration: regDetails.second_holder_mobile_declaration || '',
+          third_holder_email: regDetails.third_holder_email || '',
+          third_holder_email_declaration: regDetails.third_holder_email_declaration || '',
+          third_holder_mobile: regDetails.third_holder_mobile || '',
+          third_holder_mobile_declaration: regDetails.third_holder_mobile_declaration || '',
+          guardian_relation: regDetails.guardian_relation || '',
+          filler1: regDetails.filler1 || '',
+          filler2: regDetails.filler2 || '',
+          filler3: regDetails.filler3 || '',
+          consent_flag: regDetails.consent_flag || '',
+          reg_id: registrationResponse.data.reg_details[0]?.reg_id || '',
+          reg_status: registrationResponse.data.reg_details[0]?.reg_status || 'REG_PENDING',
+          reg_remark: registrationResponse.data.reg_details[0]?.reg_remark || ''
+        });
+        
+        await uccRegistration.save();
+        console.log('UCC Registration saved to MongoDB');
+      } catch (dbError) {
+        console.error('Failed to save UCC registration to MongoDB:', dbError.message);
+        // Continue with the response even if MongoDB save fails
+      }
+      
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -541,15 +783,71 @@ app.post('/api/register-ucc', async (req, res) => {
         
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
+        
+        // Create simulated response
+        const simulatedResponse = {
+          message: "UCC Registration processed successfully (simulated)",
+          reg_details: [{
+            client_code: clientDetails.client_code,
+            reg_id: `REG${Date.now()}`,
+            reg_status: "REG_SUCCESS",
+            reg_remark: "Simulated registration successful"
+          }],
+          response_status: 'S'
+        };
+        
+        // Store the simulated registration in MongoDB
+        try {
+          const uccRegistration = new UccRegistration({
+            client_code: clientDetails.client_code,
+            primary_holder_first_name: clientDetails.firstName,
+            primary_holder_middle_name: clientDetails.middleName || '',
+            primary_holder_last_name: clientDetails.lastName,
+            tax_status: clientDetails.taxStatus,
+            gender: clientDetails.gender,
+            primary_holder_dob_incorporation: clientDetails.dob,
+            occupation_code: clientDetails.occupationCode,
+            holding_nature: clientDetails.holdingNature,
+            primary_holder_pan_exempt: clientDetails.primary_holder_pan_exempt || 'N',
+            primary_holder_pan: clientDetails.primary_holder_pan,
+            client_type: clientDetails.clientType || 'P',
+            default_dp: clientDetails.default_dp || 'CDSL',
+            account_type_1: clientDetails.account_type_1 || 'SB',
+            account_no_1: clientDetails.account_no_1,
+            ifsc_code_1: clientDetails.ifsc_code_1,
+            default_bank_flag_1: clientDetails.default_bank_flag_1 || 'Y',
+            cheque_name: clientDetails.cheque_name,
+            div_pay_mode: clientDetails.div_pay_mode || '03',
+            communication_mode: clientDetails.communicationMode || 'P',
+            email: clientDetails.email,
+            address_1: clientDetails.address1 || '',
+            city: clientDetails.city,
+            state: clientDetails.state,
+            pincode: clientDetails.pincode,
+            country: clientDetails.country,
+            indian_mobile_no: clientDetails.mobileNo || '',
+            paperless_flag: clientDetails.paperlessFlag || 'Z',
+            nomination_opt: clientDetails.nominationOpt || 'N',
+            primary_holder_kyc_type: clientDetails.primary_holder_kyc_type || 'K',
+            aadhaar_updated: clientDetails.aadhaarUpdated || 'Y',
+            mobile_declaration_flag: clientDetails.mobile_declaration_flag || 'SE',
+            email_declaration_flag: clientDetails.email_declaration_flag || 'SE',
+            reg_id: simulatedResponse.reg_details[0].reg_id,
+            reg_status: simulatedResponse.reg_details[0].reg_status,
+            reg_remark: simulatedResponse.reg_details[0].reg_remark
+          });
+          
+          await uccRegistration.save();
+          console.log('Simulated UCC Registration saved to MongoDB');
+        } catch (dbError) {
+          console.error('Failed to save simulated UCC registration to MongoDB:', dbError.message);
+          // Continue with the response even if MongoDB save fails
+        }
+        
         res.json({
           success: true,
           simulated: true,
-          data: {
-            message: "UCC Registration processed successfully (simulated)",
-            client_code: clientDetails.clientCode,
-            status: "PENDING",
-            timestamp: new Date().toISOString()
-          }
+          data: simulatedResponse
         });
       } else {
         console.error('Error:', apiError.message);
@@ -849,6 +1147,105 @@ app.post('/api/order-cancellation', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to process order cancellation',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to get UCC registrations from MongoDB
+app.get('/api/ucc-registrations', async (req, res) => {
+  try {
+    const { clientCode, limit = 20, skip = 0 } = req.query;
+    
+    // Check if mongoose is connected before querying
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'MongoDB is not connected',
+        message: 'Database functionality is temporarily unavailable'
+      });
+    }
+    
+    // Build query based on parameters
+    const query = {};
+    if (clientCode) {
+      query.client_code = clientCode;
+    }
+    
+    // Execute the query with pagination
+    const uccRegistrations = await UccRegistration.find(query)
+      .sort({ createdAt: -1 })
+      .skip(parseInt(skip))
+      .limit(parseInt(limit));
+    
+    // Get total count for pagination
+    const total = await UccRegistration.countDocuments(query);
+    
+    res.json({
+      success: true,
+      data: uccRegistrations,
+      pagination: {
+        total,
+        skip: parseInt(skip),
+        limit: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving UCC registrations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve UCC registrations',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to get orders from MongoDB
+app.get('/api/orders', async (req, res) => {
+  try {
+    const { clientCode, schemeCode, limit = 20, skip = 0 } = req.query;
+    
+    // Check if mongoose is connected before querying
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'MongoDB is not connected',
+        message: 'Database functionality is temporarily unavailable'
+      });
+    }
+    
+    // Build query based on parameters
+    const query = {};
+    if (clientCode) {
+      query.client_code = clientCode;
+    }
+    if (schemeCode) {
+      query.scheme_code = schemeCode;
+    }
+    
+    // Execute the query with pagination
+    const orders = await OrderEntry.find(query)
+      .sort({ createdAt: -1 })
+      .skip(parseInt(skip))
+      .limit(parseInt(limit));
+    
+    // Get total count for pagination
+    const total = await OrderEntry.countDocuments(query);
+    
+    res.json({
+      success: true,
+      data: orders,
+      pagination: {
+        total,
+        skip: parseInt(skip),
+        limit: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving orders:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve orders',
       details: error.message
     });
   }

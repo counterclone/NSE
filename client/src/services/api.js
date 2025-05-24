@@ -48,6 +48,38 @@ const api = {
   
   getSchemeMasterFiles: () => {
     return axios.get(`${API_URL}/scheme-master-files`);
+  },
+
+  // New functions to retrieve MongoDB data
+  getStoredOrders: (params = {}) => {
+    let url = `${API_URL}/orders`;
+    
+    // Add query parameters if provided
+    if (Object.keys(params).length > 0) {
+      const queryParams = new URLSearchParams();
+      if (params.clientCode) queryParams.append('clientCode', params.clientCode);
+      if (params.schemeCode) queryParams.append('schemeCode', params.schemeCode);
+      if (params.limit) queryParams.append('limit', params.limit);
+      if (params.skip) queryParams.append('skip', params.skip);
+      url += `?${queryParams.toString()}`;
+    }
+    
+    return axios.get(url);
+  },
+  
+  getStoredUCCRegistrations: (params = {}) => {
+    let url = `${API_URL}/ucc-registrations`;
+    
+    // Add query parameters if provided
+    if (Object.keys(params).length > 0) {
+      const queryParams = new URLSearchParams();
+      if (params.clientCode) queryParams.append('clientCode', params.clientCode);
+      if (params.limit) queryParams.append('limit', params.limit);
+      if (params.skip) queryParams.append('skip', params.skip);
+      url += `?${queryParams.toString()}`;
+    }
+    
+    return axios.get(url);
   }
 };
 

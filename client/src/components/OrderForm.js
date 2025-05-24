@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const OrderForm = ({ scheme, onSubmit, loading }) => {
   const [formData, setFormData] = useState({
     amount: '',
-    clientCode: 'H30350', // Default client code from order-entry.js
+    clientCode: 'H34567', // Default client code from order-entry.js
     remarks: '',
     email: '',
     mobileNo: ''

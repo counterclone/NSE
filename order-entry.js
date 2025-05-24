@@ -77,7 +77,7 @@ const testNseApi = async () => {
       "transaction_details": [
         {
           "order_ref_number": "000001",              // Optional, unique reference number
-          "scheme_code": "ZLIQ-GR",               // Mandatory, scheme code must exist in system
+          "scheme_code": "INF209K01VA3",               // Mandatory, scheme code must exist in system
           "trxn_type": "P",                         // Mandatory, P = Purchase
           "buy_sell_type": "FRESH",                 // Mandatory, FRESH for new purchase
           "client_code": "H34567",                  // Mandatory, must be present in system

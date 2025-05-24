@@ -8,6 +8,7 @@ import UCCRegistrationForm from './components/UCCRegistrationForm';
 import OrderStatusReport from './components/OrderStatusReport';
 import OrderCancellation from './components/OrderCancellation';
 import SchemeMasterDownload from './components/SchemeMasterDownload';
+import DatabaseViewer from './components/DatabaseViewer';
 import api from './services/api';
 
 function App() {
@@ -16,7 +17,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('order'); // 'order', 'ucc', 'report', 'cancel', or 'scheme'
+  const [activeTab, setActiveTab] = useState('order'); // 'order', 'ucc', 'report', 'cancel', 'scheme', or 'database'
 
   // Add global functions to switch between tabs
   useEffect(() => {
@@ -162,6 +163,14 @@ function App() {
                     Scheme Master
                   </button>
                 </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === 'database' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('database')}
+                  >
+                    Database
+                  </button>
+                </li>
               </ul>
             </div>
           </div>
@@ -233,7 +242,15 @@ function App() {
         </div>
       )}
       
-      {response && activeTab !== 'report' && activeTab !== 'cancel' && activeTab !== 'scheme' && (
+      {activeTab === 'database' && (
+        <div className="row">
+          <div className="col-12">
+            <DatabaseViewer />
+          </div>
+        </div>
+      )}
+      
+      {response && activeTab !== 'report' && activeTab !== 'cancel' && activeTab !== 'scheme' && activeTab !== 'database' && (
         <div className="row mt-4">
           <div className="col-12">
             <ResponseDisplay response={response} />
