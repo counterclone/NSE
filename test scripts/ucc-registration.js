@@ -100,7 +100,7 @@ const testUccRegistration = async () => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -115,7 +115,7 @@ const testUccRegistration = async () => {
       'Connection': 'keep-alive',
       'User-Agent': 'NSE-API-Client/1.0'
     };
-    
+
     console.log('Headers:', JSON.stringify(headers, null, 2));
 
     // Sample client details
@@ -142,27 +142,27 @@ const testUccRegistration = async () => {
 
     // Generate payload
     const uccPayload = generateUccPayload(sampleClient);
-    
+
     console.log('Making UCC Registration API request...');
     console.log('URL:', `${config.url}/registration/CLIENTCOMMON`);
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     // Make the UCC Registration API request
     const registrationResponse = await instance.post(
       `${config.url}/registration/CLIENTCOMMON`,
       uccPayload,
       { headers }
     );
-    
+
     console.log('Registration API Response Status:', registrationResponse.status);
     console.log('Registration API Response Data:', JSON.stringify(registrationResponse.data, null, 2));
-    
+
   } catch (error) {
     console.error('UCC Registration Failed!');
     console.error('=========================');
