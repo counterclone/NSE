@@ -6,13 +6,17 @@ const api = {
   getSchemes: () => {
     return axios.get(`${API_URL}/schemes`);
   },
-  
+
   submitOrder: (orderData) => {
     return axios.post(`${API_URL}/process-order`, orderData);
   },
 
   registerUCC: (clientDetails) => {
     return axios.post(`${API_URL}/register-ucc`, clientDetails);
+  },
+
+  registerUCC183: (clientDetails) => {
+    return axios.post(`${API_URL}/register-ucc-183`, clientDetails);
   },
 
   getOrderStatusReport: (reportParams) => {
@@ -22,11 +26,11 @@ const api = {
   cancelOrder: (cancellationDetails) => {
     return axios.post(`${API_URL}/order-cancellation`, cancellationDetails);
   },
-  
+
   downloadSchemeMaster: (options = {}) => {
     return axios.post(`${API_URL}/download-scheme-master`, options);
   },
-  
+
   getSchemeMasterJson: (options = {}) => {
     let url = `${API_URL}/scheme-master-json`;
     if (options.fileName || options.limit) {
@@ -37,7 +41,7 @@ const api = {
     }
     return axios.get(url);
   },
-  
+
   getSchemeMasterRawUrl: (fileName) => {
     let url = `${API_URL}/scheme-master-raw`;
     if (fileName) {
@@ -45,7 +49,7 @@ const api = {
     }
     return url;
   },
-  
+
   getSchemeMasterFiles: () => {
     return axios.get(`${API_URL}/scheme-master-files`);
   },
@@ -53,7 +57,7 @@ const api = {
   // New functions to retrieve MongoDB data
   getStoredOrders: (params = {}) => {
     let url = `${API_URL}/orders`;
-    
+
     // Add query parameters if provided
     if (Object.keys(params).length > 0) {
       const queryParams = new URLSearchParams();
@@ -63,13 +67,13 @@ const api = {
       if (params.skip) queryParams.append('skip', params.skip);
       url += `?${queryParams.toString()}`;
     }
-    
+
     return axios.get(url);
   },
-  
+
   getStoredUCCRegistrations: (params = {}) => {
     let url = `${API_URL}/ucc-registrations`;
-    
+
     // Add query parameters if provided
     if (Object.keys(params).length > 0) {
       const queryParams = new URLSearchParams();
@@ -78,7 +82,7 @@ const api = {
       if (params.skip) queryParams.append('skip', params.skip);
       url += `?${queryParams.toString()}`;
     }
-    
+
     return axios.get(url);
   }
 };

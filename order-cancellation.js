@@ -9,15 +9,21 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
+require('dotenv').config({ path: '.env.local' });
 
-// Configuration (use environment variables in production)
+// Configuration (using environment variables)
 const config = {
   url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
-  loginUserId: 'ADMIN',
-  apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',
-  apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6',
-  memberCode: '1002516'
+  loginUserId: process.env.LOGIN_USER_ID,
+  apiKeyMember: process.env.API_KEY_MEMBER,
+  apiSecretUser: process.env.API_SECRET_USER,
+  memberCode: process.env.MEMBER_CODE
 };
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+  throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
 
 // Generate encrypted password as per NSE documentation
 const generateEncryptedPassword = () => {
@@ -57,8 +63,8 @@ const generateOrderCancellationPayload = (cancellationDetails) => {
 
   // Create the correct structure for the API
   return {
-    can_data: Array.isArray(cancellationDetails) 
-      ? cancellationDetails 
+    can_data: Array.isArray(cancellationDetails)
+      ? cancellationDetails
       : [cancellationDetails]
   };
 };
@@ -69,7 +75,7 @@ const cancelOrders = async (ordersToCancel) => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -84,7 +90,7 @@ const cancelOrders = async (ordersToCancel) => {
       'Connection': 'keep-alive',
       'User-Agent': 'NSE-API-Client/1.0'
     };
-    
+
     console.log('\nRequest Headers:');
     console.log('---------------');
     console.log(JSON.stringify(headers, null, 2));
@@ -94,24 +100,24 @@ const cancelOrders = async (ordersToCancel) => {
     console.log('\nRequest Payload:');
     console.log('---------------');
     console.log(JSON.stringify(payload, null, 2));
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     // Make the Order Cancellation API request
     console.log('\nMaking Order Cancellation API request...');
     console.log('URL:', `${config.url}/cancellation/ORDER_CAN`);
-    
+
     const response = await instance.post(
       `${config.url}/cancellation/ORDER_CAN`,
       payload,
       { headers }
     );
-    
+
     // Log complete raw response
     console.log('\nComplete Raw Response:');
     console.log('--------------------');
@@ -121,9 +127,9 @@ const cancelOrders = async (ordersToCancel) => {
     console.log(JSON.stringify(response.headers, null, 2));
     console.log('\nResponse Data:');
     console.log(JSON.stringify(response.data, null, 2));
-    
+
     return response.data;
-    
+
   } catch (error) {
     console.error('\nAPI Error:');
     console.error('----------');

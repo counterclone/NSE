@@ -3,15 +3,21 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+require('dotenv').config({ path: '.env.local' });
 
-// Configuration (replace with your actual credentials or use environment variables)
+// Configuration (using environment variables)
 const config = {
   url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
-  loginUserId: 'ADMIN',
-  apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',
-  apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6',
-  memberCode: '1002516'
+  loginUserId: process.env.LOGIN_USER_ID,
+  apiKeyMember: process.env.API_KEY_MEMBER,
+  apiSecretUser: process.env.API_SECRET_USER,
+  memberCode: process.env.MEMBER_CODE
 };
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+  throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
 
 // Generate encrypted password as per NSE documentation
 const generateEncryptedPassword = () => {
@@ -37,7 +43,7 @@ const downloadSchemeMaster = async (forceDownload = false) => {
   try {
     // Generate filename with current date
     const now = new Date();
-    const fileName = `NSE_NSEINVEST_ALL_${now.getDate().toString().padStart(2, '0')}${(now.getMonth()+1).toString().padStart(2, '0')}${now.getFullYear()}.txt`;
+    const fileName = `NSE_NSEINVEST_ALL_${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}.txt`;
     const filePath = path.join(__dirname, fileName);
 
     // Check if the file already exists and is recent (same day)
@@ -101,43 +107,43 @@ const downloadSchemeMaster = async (forceDownload = false) => {
  */
 const parseSchemeMasterFile = async (filePath, options = {}) => {
   const { limit = 1000 } = options;
-  
+
   return new Promise((resolve, reject) => {
     try {
       // Check if file exists
       if (!fs.existsSync(filePath)) {
         return reject(new Error(`File not found: ${filePath}`));
       }
-      
+
       const schemes = [];
       let isFirstLine = true;
       let headers = [];
       let lineCount = 0;
-      
+
       const fileStream = fs.createReadStream(filePath);
       const rl = require('readline').createInterface({
         input: fileStream,
         crlfDelay: Infinity
       });
-      
+
       rl.on('line', (line) => {
         lineCount++;
-        
+
         // If we've hit the limit, stop processing
         if (limit && lineCount > limit + 1) { // +1 for header
           rl.close();
           return;
         }
-        
+
         const cols = line.split('|');
-        
+
         if (isFirstLine) {
           // Save headers
           headers = cols;
           isFirstLine = false;
           return;
         }
-        
+
         // Create object from columns
         const scheme = {};
         cols.forEach((col, index) => {
@@ -145,10 +151,10 @@ const parseSchemeMasterFile = async (filePath, options = {}) => {
             scheme[headers[index]] = col;
           }
         });
-        
+
         schemes.push(scheme);
       });
-      
+
       rl.on('close', () => {
         console.log(`Parsed ${schemes.length} schemes from file`);
         resolve({
@@ -158,7 +164,7 @@ const parseSchemeMasterFile = async (filePath, options = {}) => {
           limit
         });
       });
-      
+
       rl.on('error', (err) => {
         reject(err);
       });
@@ -170,7 +176,7 @@ const parseSchemeMasterFile = async (filePath, options = {}) => {
 
 // If this file is run directly, download the scheme master
 if (require.main === module) {
-downloadSchemeMaster().catch(console.error); 
+  downloadSchemeMaster().catch(console.error);
 }
 
 module.exports = {

@@ -5,6 +5,8 @@ const readline = require('readline');
 const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
+const path = require('path');
+require('dotenv').config({ path: '.env.local' });
 
 const app = express();
 const PORT = 4000;
@@ -18,14 +20,19 @@ app.use(cors({
 
 app.use(express.json());
 
-// Configuration (use environment variables in production)
+// Configuration (using environment variables)
 const config = {
-  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2', 
-  loginUserId: 'ADMIN',   
-  apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',    
-  apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6', 
-  memberCode: '1002516'         
+  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
+  loginUserId: process.env.LOGIN_USER_ID,
+  apiKeyMember: process.env.API_KEY_MEMBER,
+  apiSecretUser: process.env.API_SECRET_USER,
+  memberCode: process.env.MEMBER_CODE
 };
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+  throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
 
 // Generate encrypted password as per NSE documentation
 const generateEncryptedPassword = () => {
@@ -66,7 +73,7 @@ app.get('/api/schemes', async (req, res) => {
       console.error(`Scheme file not found: ${filePath}`);
       return res.status(404).json({ error: 'Scheme file not found' });
     }
-    
+
     const fileStream = fs.createReadStream(filePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
     let isHeader = true;
@@ -91,7 +98,7 @@ app.post('/api/process-order', async (req, res) => {
   try {
     console.log('Received order request:', req.body);
     const { schemeCode, amount, clientCode } = req.body;
-    
+
     if (!schemeCode || !amount || !clientCode) {
       console.error('Missing required fields:', { schemeCode, amount, clientCode });
       return res.status(400).json({ error: 'Missing required fields' });
@@ -100,7 +107,7 @@ app.post('/api/process-order', async (req, res) => {
     // Generate encrypted password exactly as in order-entry.js
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -115,9 +122,9 @@ app.post('/api/process-order', async (req, res) => {
       'Connection': 'keep-alive',
       'User-Agent': 'NSE-API-Client/1.0'
     };
-    
+
     console.log('Headers:', JSON.stringify(headers, null, 2));
-    
+
     // Create order payload exactly as in order-entry.js
     const orderPayload = {
       "transaction_details": [
@@ -157,14 +164,14 @@ app.post('/api/process-order', async (req, res) => {
     console.log('Making Order Entry API request...');
     console.log('URL:', `${config.url}/transaction/NORMAL`);
     console.log('Payload:', JSON.stringify(orderPayload, null, 2));
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     try {
       // Make the Order Entry API request exactly as in order-entry.js
       const orderResponse = await instance.post(
@@ -172,10 +179,10 @@ app.post('/api/process-order', async (req, res) => {
         orderPayload,
         { headers }
       );
-      
+
       console.log('Order API Response Status:', orderResponse.status);
       console.log('Order API Response Data:', JSON.stringify(orderResponse.data, null, 2));
-      
+
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -183,14 +190,14 @@ app.post('/api/process-order', async (req, res) => {
       });
     } catch (apiError) {
       console.error('API Error:');
-      
+
       if (apiError.response) {
         // The request was made and the server responded with a status code
         // that falls out of the range of 2xx
         console.error('Status:', apiError.response.status);
         console.error('Headers:', apiError.response.headers);
         console.error('Data:', apiError.response.data);
-        
+
         res.status(apiError.response.status).json({
           success: false,
           error: 'NSE API Error',
@@ -200,7 +207,7 @@ app.post('/api/process-order', async (req, res) => {
       } else if (apiError.request) {
         // The request was made but no response was received
         console.error('No response received:', apiError.request);
-        
+
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
         res.json({
@@ -219,7 +226,7 @@ app.post('/api/process-order', async (req, res) => {
       } else {
         // Something happened in setting up the request that triggered an Error
         console.error('Error:', apiError.message);
-        
+
         res.status(500).json({
           success: false,
           error: apiError.message
@@ -228,7 +235,7 @@ app.post('/api/process-order', async (req, res) => {
     }
   } catch (error) {
     console.error('Server Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'An error occurred while processing your order',

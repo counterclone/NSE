@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 const mongoose = require('mongoose');
 
 // Import MongoDB connection and models
@@ -32,13 +32,74 @@ app.use(cors({
 
 app.use(express.json());
 
-// Configuration (use environment variables in production)
+// Configuration (using environment variables)
 const config = {
-  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2', 
-  loginUserId: 'ADMIN',   
-  apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',    
-  apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6', 
-  memberCode: '1002516'         
+  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
+  loginUserId: process.env.LOGIN_USER_ID,
+  apiKeyMember: process.env.API_KEY_MEMBER,
+  apiSecretUser: process.env.API_SECRET_USER,
+  memberCode: process.env.MEMBER_CODE
+};
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+  throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
+
+// Helper function to make NSE API requests
+const makeNSERequest = async (endpoint, payload) => {
+  // Generate encrypted password
+  const encryptedPassword = generateEncryptedPassword();
+  console.log('Encrypted Password:', encryptedPassword);
+
+  // Create basic auth string
+  const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
+  console.log('Basic Auth:', basicAuth);
+
+  // Create headers for NSE API
+  const headers = {
+    'Content-Type': 'application/json',
+    'memberId': config.memberCode,
+    'Authorization': `BASIC ${basicAuth}`,
+    'Accept-Language': 'en-US',
+    'Referer': 'www.google.com',
+    'Connection': 'keep-alive',
+    'User-Agent': 'NSE-API-Client/1.0'
+  };
+
+  // Create axios instance with TLS options
+  const instance = axios.create({
+    httpsAgent: new https.Agent({
+      rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
+    })
+  });
+
+  // Make the API request
+  return await instance.post(
+    `${config.url}${endpoint}`,
+    payload,
+    { headers }
+  );
+};
+
+// Helper function to handle API errors
+const handleAPIError = (error, res) => {
+  console.error('API Error:');
+  if (error.response) {
+    console.error('Status:', error.response.status);
+    console.error('Data:', error.response.data);
+    res.status(error.response.status).json({
+      success: false,
+      error: 'NSE API Error',
+      data: error.response.data
+    });
+  } else {
+    console.error('Error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 };
 
 // Generate encrypted password as per NSE documentation
@@ -75,10 +136,10 @@ app.post('/api/download-scheme-master', async (req, res) => {
   try {
     console.log('Received request to download scheme master');
     const forceDownload = req.body.forceDownload === true;
-    
+
     // Download the scheme master
     const result = await downloadSchemeMaster(forceDownload);
-    
+
     res.json({
       success: true,
       message: forceDownload ? 'Scheme master downloaded successfully' : 'Scheme master processed successfully',
@@ -100,29 +161,29 @@ app.get('/api/scheme-master-json', async (req, res) => {
   try {
     // Get file path (either from latest file or use the one specified in query)
     let filePath;
-    
+
     if (req.query.fileName) {
       filePath = path.join(__dirname, req.query.fileName);
     } else {
       // Find the latest scheme master file
       const files = fs.readdirSync(__dirname);
       const schemeFiles = files.filter(file => file.startsWith('NSE_NSEINVEST_ALL_') && file.endsWith('.txt'));
-      
+
       if (schemeFiles.length === 0) {
         return res.status(404).json({ error: 'No scheme master files found' });
       }
-      
+
       // Sort by date (newest first, based on filename)
       schemeFiles.sort().reverse();
       filePath = path.join(__dirname, schemeFiles[0]);
     }
-    
+
     // Parse the limit parameter
     const limit = req.query.limit ? parseInt(req.query.limit) : 1000;
-    
+
     // Parse the file
     const result = await parseSchemeMasterFile(filePath, { limit });
-    
+
     res.json({
       success: true,
       fileName: path.basename(filePath),
@@ -146,32 +207,32 @@ app.get('/api/scheme-master-raw', async (req, res) => {
   try {
     // Get file path (either from latest file or use the one specified in query)
     let filePath;
-    
+
     if (req.query.fileName) {
       filePath = path.join(__dirname, req.query.fileName);
     } else {
       // Find the latest scheme master file
       const files = fs.readdirSync(__dirname);
       const schemeFiles = files.filter(file => file.startsWith('NSE_NSEINVEST_ALL_') && file.endsWith('.txt'));
-      
+
       if (schemeFiles.length === 0) {
         return res.status(404).json({ error: 'No scheme master files found' });
       }
-      
+
       // Sort by date (newest first, based on filename)
       schemeFiles.sort().reverse();
       filePath = path.join(__dirname, schemeFiles[0]);
     }
-    
+
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Scheme master file not found' });
     }
-    
+
     // Return the raw file
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
-    
+
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   } catch (error) {
@@ -198,7 +259,7 @@ app.get('/api/scheme-master-files', (req, res) => {
         created: fs.statSync(path.join(__dirname, file)).birthtime
       }))
       .sort((a, b) => b.created - a.created); // Sort by date (newest first)
-    
+
     res.json({
       success: true,
       files: schemeFiles
@@ -219,49 +280,49 @@ app.get('/api/schemes', async (req, res) => {
     // Find the latest scheme master file
     const files = fs.readdirSync(__dirname);
     const schemeFiles = files.filter(file => file.startsWith('NSE_NSEINVEST_ALL_') && file.endsWith('.txt'));
-    
+
     if (schemeFiles.length === 0) {
       console.error('No scheme master files found');
       return res.status(404).json({ error: 'No scheme master files found. Please download the scheme master first.' });
     }
-    
+
     // Sort by date (newest first, based on filename)
     schemeFiles.sort().reverse();
     const filePath = path.join(__dirname, schemeFiles[0]);
-    
+
     console.log(`Using latest scheme file: ${filePath}`);
-    
+
     const schemes = [];
-    
+
     // Check if file exists first
     if (!fs.existsSync(filePath)) {
       console.error(`Scheme file not found: ${filePath}`);
       return res.status(404).json({ error: 'Scheme file not found' });
     }
-    
+
     const fileStream = fs.createReadStream(filePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-    
+
     let isFirstLine = true;
     for await (const line of rl) {
-      if (isFirstLine) { 
-        isFirstLine = false; 
+      if (isFirstLine) {
+        isFirstLine = false;
         continue; // Skip header line
       }
-      
+
       const cols = line.split('|');
       if (cols.length > 8) {
         // Only include schemes that allow purchase
         if (cols[9] === 'Y') {
-          schemes.push({ 
-            code: cols[1], 
+          schemes.push({
+            code: cols[1],
             name: cols[8],
             minAmount: cols[11] || '1000' // Get minimum purchase amount if available
           });
         }
       }
     }
-    
+
     console.log(`Successfully loaded ${schemes.length} purchasable schemes`);
     res.json(schemes);
   } catch (err) {
@@ -275,7 +336,7 @@ app.post('/api/process-order', async (req, res) => {
   try {
     console.log('Received order request:', req.body);
     const { schemeCode, amount, clientCode, remarks, email, mobileNo } = req.body;
-    
+
     if (!schemeCode || !amount || !clientCode) {
       console.error('Missing required fields:', { schemeCode, amount, clientCode });
       return res.status(400).json({ error: 'Missing required fields' });
@@ -284,7 +345,7 @@ app.post('/api/process-order', async (req, res) => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -299,9 +360,9 @@ app.post('/api/process-order', async (req, res) => {
       'Connection': 'keep-alive',
       'User-Agent': 'NSE-API-Client/1.0'
     };
-    
+
     console.log('Headers:', JSON.stringify(headers, null, 2));
-    
+
     // Create order payload using the selected scheme and form data
     const orderPayload = {
       "transaction_details": [
@@ -340,14 +401,14 @@ app.post('/api/process-order', async (req, res) => {
     console.log('Making Order Entry API request...');
     console.log('URL:', `${config.url}/transaction/NORMAL`);
     console.log('Payload:', JSON.stringify(orderPayload, null, 2));
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     try {
       // Make the Order Entry API request
       const orderResponse = await instance.post(
@@ -355,10 +416,10 @@ app.post('/api/process-order', async (req, res) => {
         orderPayload,
         { headers }
       );
-      
+
       console.log('Order API Response Status:', orderResponse.status);
       console.log('Order API Response Data:', JSON.stringify(orderResponse.data, null, 2));
-      
+
       // Store the order entry data in MongoDB
       try {
         const orderDetails = orderResponse.data.transaction_details[0];
@@ -393,14 +454,14 @@ app.post('/api/process-order', async (req, res) => {
           trxn_remark: orderResponse.data.transaction_details[0]?.trxn_remark || '',
           filler1: orderPayload.transaction_details[0].filler1
         });
-        
+
         await orderEntry.save();
         console.log('Order Entry saved to MongoDB');
       } catch (dbError) {
         console.error('Failed to save order entry to MongoDB:', dbError.message);
         // Continue with the response even if MongoDB save fails
       }
-      
+
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -408,14 +469,14 @@ app.post('/api/process-order', async (req, res) => {
       });
     } catch (apiError) {
       console.error('API Error:');
-      
+
       if (apiError.response) {
         // The request was made and the server responded with a status code
         // that falls out of the range of 2xx
         console.error('Status:', apiError.response.status);
         console.error('Headers:', apiError.response.headers);
         console.error('Data:', apiError.response.data);
-        
+
         res.status(apiError.response.status).json({
           success: false,
           error: 'NSE API Error',
@@ -425,10 +486,10 @@ app.post('/api/process-order', async (req, res) => {
       } else if (apiError.request) {
         // The request was made but no response was received
         console.error('No response received:', apiError.request);
-        
+
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
-        
+
         // Create simulated response
         const simulatedResponse = {
           message: "Order processed successfully (simulated)",
@@ -439,7 +500,7 @@ app.post('/api/process-order', async (req, res) => {
           status: "PENDING",
           timestamp: new Date().toISOString()
         };
-        
+
         // Store the simulated order in MongoDB
         try {
           const orderEntry = new OrderEntry({
@@ -451,14 +512,14 @@ app.post('/api/process-order', async (req, res) => {
             amount: parseFloat(amount),
             status: 'SIMULATED'
           });
-          
+
           await orderEntry.save();
           console.log('Simulated Order Entry saved to MongoDB');
         } catch (dbError) {
           console.error('Failed to save simulated order entry to MongoDB:', dbError.message);
           // Continue with the response even if MongoDB save fails
         }
-        
+
         res.json({
           success: true,
           simulated: true,
@@ -467,7 +528,7 @@ app.post('/api/process-order', async (req, res) => {
       } else {
         // Something happened in setting up the request that triggered an Error
         console.error('Error:', apiError.message);
-        
+
         res.status(500).json({
           success: false,
           error: apiError.message
@@ -476,7 +537,7 @@ app.post('/api/process-order', async (req, res) => {
     }
   } catch (error) {
     console.error('Server Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'An error occurred while processing your order',
@@ -495,7 +556,7 @@ app.post('/api/register-ucc', async (req, res) => {
     const requiredFields = [
       'clientCode', 'firstName', 'lastName', 'taxStatus', 'gender',
       'dob', 'occupationCode', 'holdingNature', 'email', 'city',
-      'state', 'pincode', 'country', 'account_no_1', 'ifsc_code_1', 
+      'state', 'pincode', 'country', 'account_no_1', 'ifsc_code_1',
       'cheque_name', 'primary_holder_pan'
     ];
 
@@ -511,7 +572,7 @@ app.post('/api/register-ucc', async (req, res) => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -573,14 +634,14 @@ app.post('/api/register-ucc', async (req, res) => {
     console.log('Making UCC Registration API request...');
     console.log('URL:', `${config.url}/registration/CLIENTCOMMON`);
     console.log('Payload:', JSON.stringify(uccPayload, null, 2));
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     try {
       // Make the UCC Registration API request
       const registrationResponse = await instance.post(
@@ -588,10 +649,10 @@ app.post('/api/register-ucc', async (req, res) => {
         uccPayload,
         { headers }
       );
-      
+
       console.log('Registration API Response Status:', registrationResponse.status);
       console.log('Registration API Response Data:', JSON.stringify(registrationResponse.data, null, 2));
-      
+
       // Store the registration data in MongoDB
       try {
         const regDetails = uccPayload.reg_details[0];
@@ -751,14 +812,14 @@ app.post('/api/register-ucc', async (req, res) => {
           reg_status: registrationResponse.data.reg_details[0]?.reg_status || 'REG_PENDING',
           reg_remark: registrationResponse.data.reg_details[0]?.reg_remark || ''
         });
-        
+
         await uccRegistration.save();
         console.log('UCC Registration saved to MongoDB');
       } catch (dbError) {
         console.error('Failed to save UCC registration to MongoDB:', dbError.message);
         // Continue with the response even if MongoDB save fails
       }
-      
+
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -766,12 +827,12 @@ app.post('/api/register-ucc', async (req, res) => {
       });
     } catch (apiError) {
       console.error('API Error:');
-      
+
       if (apiError.response) {
         console.error('Status:', apiError.response.status);
         console.error('Headers:', apiError.response.headers);
         console.error('Data:', apiError.response.data);
-        
+
         res.status(apiError.response.status).json({
           success: false,
           error: 'NSE API Error',
@@ -780,10 +841,10 @@ app.post('/api/register-ucc', async (req, res) => {
         });
       } else if (apiError.request) {
         console.error('No response received:', apiError.request);
-        
+
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
-        
+
         // Create simulated response
         const simulatedResponse = {
           message: "UCC Registration processed successfully (simulated)",
@@ -795,7 +856,7 @@ app.post('/api/register-ucc', async (req, res) => {
           }],
           response_status: 'S'
         };
-        
+
         // Store the simulated registration in MongoDB
         try {
           const uccRegistration = new UccRegistration({
@@ -836,14 +897,14 @@ app.post('/api/register-ucc', async (req, res) => {
             reg_status: simulatedResponse.reg_details[0].reg_status,
             reg_remark: simulatedResponse.reg_details[0].reg_remark
           });
-          
+
           await uccRegistration.save();
           console.log('Simulated UCC Registration saved to MongoDB');
         } catch (dbError) {
           console.error('Failed to save simulated UCC registration to MongoDB:', dbError.message);
           // Continue with the response even if MongoDB save fails
         }
-        
+
         res.json({
           success: true,
           simulated: true,
@@ -851,7 +912,7 @@ app.post('/api/register-ucc', async (req, res) => {
         });
       } else {
         console.error('Error:', apiError.message);
-        
+
         res.status(500).json({
           success: false,
           error: apiError.message
@@ -860,10 +921,183 @@ app.post('/api/register-ucc', async (req, res) => {
     }
   } catch (error) {
     console.error('Server Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'An error occurred while processing UCC registration',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to process UCC registration 183
+app.post('/api/register-ucc-183', async (req, res) => {
+  try {
+    console.log('Received UCC registration 183 request:', req.body);
+    const clientDetails = req.body;
+
+    // Validate required fields
+    const requiredFields = [
+      'client_code',
+      'primary_holder_first_name',
+      'primary_holder_last_name',
+      'tax_status',
+      'gender',
+      'primary_holder_dob_incorporation',
+      'occupation_code',
+      'holding_nature',
+      'primary_holder_pan',
+      'email',
+      'address_1',
+      'city',
+      'state',
+      'pincode',
+      'country'
+    ];
+
+    const missingFields = requiredFields.filter(field => !clientDetails[field]);
+    if (missingFields.length > 0) {
+      console.error('Missing required fields:', missingFields);
+      return res.status(400).json({ error: 'Missing required fields', fields: missingFields });
+    }
+
+    // Generate encrypted password
+    const encryptedPassword = generateEncryptedPassword();
+    console.log('Encrypted Password:', encryptedPassword);
+
+    // Create basic auth string
+    const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
+    console.log('Basic Auth:', basicAuth);
+
+    // Create headers for NSE API
+    const headers = {
+      'Content-Type': 'application/json',
+      'memberId': config.memberCode,
+      'Authorization': `BASIC ${basicAuth}`,
+      'Accept-Language': 'en-US',
+      'Referer': 'www.google.com',
+      'Connection': 'keep-alive',
+      'User-Agent': 'NSE-API-Client/1.0'
+    };
+
+    console.log('Headers:', JSON.stringify(headers, null, 2));
+
+    // Create registration payload using the 183 column format
+    const registrationPayload = {
+      reg_details: [clientDetails]
+    };
+
+    console.log('Making UCC Registration 183 API request...');
+    console.log('URL:', `${config.url}/registration/CLIENTCOMMON`);
+    console.log('Payload:', JSON.stringify(registrationPayload, null, 2));
+
+    // Create axios instance with TLS options
+    const instance = axios.create({
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
+      })
+    });
+
+    try {
+      // Make the UCC Registration API request
+      const registrationResponse = await instance.post(
+        `${config.url}/registration/CLIENTCOMMON`,
+        registrationPayload,
+        { headers }
+      );
+
+      console.log('Registration API Response Status:', registrationResponse.status);
+      console.log('Registration API Response Data:', JSON.stringify(registrationResponse.data, null, 2));
+
+      // Store the registration data in MongoDB
+      try {
+        const uccRegistration = new UccRegistration({
+          ...clientDetails,
+          registrationDate: new Date(),
+          status: registrationResponse.data.reg_details?.[0]?.reg_status || 'PENDING',
+          remarks: registrationResponse.data.reg_details?.[0]?.reg_remark || ''
+        });
+
+        await uccRegistration.save();
+        console.log('UCC Registration 183 saved to MongoDB');
+      } catch (dbError) {
+        console.error('Failed to save UCC registration 183 to MongoDB:', dbError.message);
+        // Continue with the response even if MongoDB save fails
+      }
+
+      // Return the actual API response to the frontend
+      res.json({
+        success: true,
+        data: registrationResponse.data
+      });
+    } catch (apiError) {
+      console.error('API Error:');
+
+      if (apiError.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Status:', apiError.response.status);
+        console.error('Headers:', apiError.response.headers);
+        console.error('Data:', apiError.response.data);
+
+        res.status(apiError.response.status).json({
+          success: false,
+          error: 'NSE API Error',
+          status: apiError.response.status,
+          data: apiError.response.data
+        });
+      } else if (apiError.request) {
+        // The request was made but no response was received
+        console.error('No response received:', apiError.request);
+
+        // For development/testing - simulate a successful response if API is unreachable
+        console.log('Sending simulated response for development (API unreachable)');
+
+        // Create simulated response
+        const simulatedResponse = {
+          message: "UCC Registration processed successfully (simulated)",
+          client_code: clientDetails.client_code,
+          status: "PENDING",
+          timestamp: new Date().toISOString()
+        };
+
+        // Store the simulated registration in MongoDB
+        try {
+          const uccRegistration = new UccRegistration({
+            ...clientDetails,
+            registrationDate: new Date(),
+            status: 'SIMULATED',
+            remarks: 'Simulated registration - API unreachable'
+          });
+
+          await uccRegistration.save();
+          console.log('Simulated UCC Registration 183 saved to MongoDB');
+        } catch (dbError) {
+          console.error('Failed to save simulated UCC registration 183 to MongoDB:', dbError.message);
+          // Continue with the response even if MongoDB save fails
+        }
+
+        res.json({
+          success: true,
+          simulated: true,
+          data: simulatedResponse
+        });
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Error:', apiError.message);
+
+        res.status(500).json({
+          success: false,
+          error: apiError.message
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Server Error:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'An error occurred while processing your registration',
       details: error.message
     });
   }
@@ -875,7 +1109,7 @@ const validateDateRange = (fromDate, toDate) => {
   const end = new Date(toDate);
   const diffTime = Math.abs(end - start);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays > 7) {
     throw new Error('Date range cannot exceed 7 days');
   }
@@ -909,7 +1143,7 @@ app.post('/api/order-status', async (req, res) => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -937,14 +1171,14 @@ app.post('/api/order-status', async (req, res) => {
     console.log('Making Order Status Report API request...');
     console.log('URL:', `${config.url}/reports/ORDER_STATUS`);
     console.log('Payload:', JSON.stringify(payload, null, 2));
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     try {
       // Make the Order Status Report API request
       const orderStatusResponse = await instance.post(
@@ -952,10 +1186,10 @@ app.post('/api/order-status', async (req, res) => {
         payload,
         { headers }
       );
-      
+
       console.log('Order Status API Response Status:', orderStatusResponse.status);
       console.log('Order Status API Response Data:', JSON.stringify(orderStatusResponse.data, null, 2));
-      
+
       // Return the actual API response to the frontend
       res.json({
         success: true,
@@ -963,12 +1197,12 @@ app.post('/api/order-status', async (req, res) => {
       });
     } catch (apiError) {
       console.error('API Error:');
-      
+
       if (apiError.response) {
         console.error('Status:', apiError.response.status);
         console.error('Headers:', apiError.response.headers);
         console.error('Data:', apiError.response.data);
-        
+
         res.status(apiError.response.status).json({
           success: false,
           error: 'NSE API Error',
@@ -977,7 +1211,7 @@ app.post('/api/order-status', async (req, res) => {
         });
       } else if (apiError.request) {
         console.error('No response received:', apiError.request);
-        
+
         // For development/testing - simulate a successful response if API is unreachable
         console.log('Sending simulated response for development (API unreachable)');
         res.json({
@@ -1008,7 +1242,7 @@ app.post('/api/order-status', async (req, res) => {
         });
       } else {
         console.error('Error:', apiError.message);
-        
+
         res.status(500).json({
           success: false,
           error: apiError.message
@@ -1017,7 +1251,7 @@ app.post('/api/order-status', async (req, res) => {
     }
   } catch (error) {
     console.error('Server Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'An error occurred while fetching order status report',
@@ -1033,7 +1267,7 @@ const { fetchOrderStatusReport } = require('./order-status-report');
 app.post('/api/order-status-report', async (req, res) => {
   try {
     console.log('Received order status report request:', req.body);
-    
+
     // Validate required fields
     const { fromDate, toDate } = req.body;
     if (!fromDate || !toDate) {
@@ -1042,7 +1276,7 @@ app.post('/api/order-status-report', async (req, res) => {
 
     // Call the fetchOrderStatusReport function
     const reportData = await fetchOrderStatusReport(req.body);
-    
+
     // For development/testing - simulate a successful response if API is unreachable
     if (!reportData) {
       console.log('Sending simulated response for development');
@@ -1072,10 +1306,10 @@ app.post('/api/order-status-report', async (req, res) => {
       success: true,
       data: reportData
     });
-    
+
   } catch (error) {
     console.error('Order Status Report Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to fetch order status report',
@@ -1091,32 +1325,32 @@ const { cancelOrders } = require('./order-cancellation');
 app.post('/api/order-cancellation', async (req, res) => {
   try {
     console.log('Received order cancellation request:', req.body);
-    
+
     // Validate required fields
     const cancellationDetails = req.body;
     const requiredFields = ['client_code', 'order_no', 'remarks'];
-    
+
     if (!cancellationDetails) {
       return res.status(400).json({ error: 'Missing cancellation details' });
     }
-    
+
     // Check if we have an array or a single order
     const ordersToCheck = Array.isArray(cancellationDetails) ? cancellationDetails : [cancellationDetails];
-    
+
     // Validate each order
     for (const order of ordersToCheck) {
       const missingFields = requiredFields.filter(field => !order[field]);
       if (missingFields.length > 0) {
-        return res.status(400).json({ 
-          error: 'Missing required fields', 
-          details: `Order for client ${order.client_code || 'unknown'} is missing: ${missingFields.join(', ')}` 
+        return res.status(400).json({
+          error: 'Missing required fields',
+          details: `Order for client ${order.client_code || 'unknown'} is missing: ${missingFields.join(', ')}`
         });
       }
     }
 
     // Call the cancelOrders function
     const cancellationResult = await cancelOrders(cancellationDetails);
-    
+
     // For development/testing - simulate a successful response if API is unreachable
     if (!cancellationResult) {
       console.log('Sending simulated response for development');
@@ -1140,10 +1374,10 @@ app.post('/api/order-cancellation', async (req, res) => {
       success: true,
       data: cancellationResult
     });
-    
+
   } catch (error) {
     console.error('Order Cancellation Error:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to process order cancellation',
@@ -1156,7 +1390,7 @@ app.post('/api/order-cancellation', async (req, res) => {
 app.get('/api/ucc-registrations', async (req, res) => {
   try {
     const { clientCode, limit = 20, skip = 0 } = req.query;
-    
+
     // Check if mongoose is connected before querying
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({
@@ -1165,22 +1399,22 @@ app.get('/api/ucc-registrations', async (req, res) => {
         message: 'Database functionality is temporarily unavailable'
       });
     }
-    
+
     // Build query based on parameters
     const query = {};
     if (clientCode) {
       query.client_code = clientCode;
     }
-    
+
     // Execute the query with pagination
     const uccRegistrations = await UccRegistration.find(query)
       .sort({ createdAt: -1 })
       .skip(parseInt(skip))
       .limit(parseInt(limit));
-    
+
     // Get total count for pagination
     const total = await UccRegistration.countDocuments(query);
-    
+
     res.json({
       success: true,
       data: uccRegistrations,
@@ -1204,7 +1438,7 @@ app.get('/api/ucc-registrations', async (req, res) => {
 app.get('/api/orders', async (req, res) => {
   try {
     const { clientCode, schemeCode, limit = 20, skip = 0 } = req.query;
-    
+
     // Check if mongoose is connected before querying
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({
@@ -1213,7 +1447,7 @@ app.get('/api/orders', async (req, res) => {
         message: 'Database functionality is temporarily unavailable'
       });
     }
-    
+
     // Build query based on parameters
     const query = {};
     if (clientCode) {
@@ -1222,16 +1456,16 @@ app.get('/api/orders', async (req, res) => {
     if (schemeCode) {
       query.scheme_code = schemeCode;
     }
-    
+
     // Execute the query with pagination
     const orders = await OrderEntry.find(query)
       .sort({ createdAt: -1 })
       .skip(parseInt(skip))
       .limit(parseInt(limit));
-    
+
     // Get total count for pagination
     const total = await OrderEntry.countDocuments(query);
-    
+
     res.json({
       success: true,
       data: orders,
@@ -1251,10 +1485,240 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
+// API endpoint to handle AOF image upload
+app.post('/api/aof-image-upload', async (req, res) => {
+  try {
+    console.log('Received AOF image upload request:', req.body);
+    const { client_code, file_name, document_type, file_data } = req.body;
+
+    if (!client_code || !file_name || !document_type || !file_data) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Generate encrypted password
+    const encryptedPassword = generateEncryptedPassword();
+    console.log('Encrypted Password:', encryptedPassword);
+
+    // Create basic auth string
+    const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
+    console.log('Basic Auth:', basicAuth);
+
+    // Create headers for NSE API
+    const headers = {
+      'Content-Type': 'application/json',
+      'memberId': config.memberCode,
+      'Authorization': `BASIC ${basicAuth}`,
+      'Accept-Language': 'en-US',
+      'Referer': 'www.google.com',
+      'Connection': 'keep-alive',
+      'User-Agent': 'NSE-API-Client/1.0'
+    };
+
+    console.log('Making AOF Image Upload API request...');
+    console.log('URL:', `${config.url}/fileupload/AOFIMG`);
+
+    // Create axios instance with TLS options
+    const instance = axios.create({
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
+      })
+    });
+
+    try {
+      // Make the AOF Image Upload API request
+      const uploadResponse = await instance.post(
+        `${config.url}/fileupload/AOFIMG`,
+        {
+          client_code,
+          file_name,
+          document_type,
+          file_data
+        },
+        { headers }
+      );
+
+      console.log('AOF Image Upload API Response Status:', uploadResponse.status);
+      console.log('AOF Image Upload API Response Data:', JSON.stringify(uploadResponse.data, null, 2));
+
+      // Return the actual API response to the frontend
+      res.json({
+        success: true,
+        data: uploadResponse.data
+      });
+    } catch (apiError) {
+      console.error('API Error:');
+      if (apiError.response) {
+        console.error('Status:', apiError.response.status);
+        console.error('Data:', apiError.response.data);
+        res.status(apiError.response.status).json({
+          success: false,
+          error: 'NSE API Error',
+          data: apiError.response.data
+        });
+      } else {
+        console.error('Error:', apiError.message);
+        res.status(500).json({
+          success: false,
+          error: apiError.message
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Server Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An error occurred while processing your request',
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to handle AOF image upload report
+app.post('/api/aof-image-report', async (req, res) => {
+  try {
+    console.log('Received AOF image report request:', req.body);
+    const { client_code, from_date, to_date } = req.body;
+
+    // Validate dates if client code is not provided
+    if (!client_code) {
+      if (!from_date || !to_date) {
+        return res.status(400).json({ error: 'From date and to date are required when client code is not provided' });
+      }
+
+      // Parse dates
+      const from = new Date(from_date.split('-').reverse().join('-'));
+      const to = new Date(to_date.split('-').reverse().join('-'));
+      const diffTime = Math.abs(to - from);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays > 31) {
+        return res.status(400).json({ error: 'Date range cannot exceed 31 days when client code is not provided' });
+      }
+
+      if (from > to) {
+        return res.status(400).json({ error: 'From date cannot be greater than to date' });
+      }
+    }
+
+    // Validate client codes
+    if (client_code) {
+      const codes = client_code.split(',');
+      if (codes.length > 50) {
+        return res.status(400).json({ error: 'Maximum 50 client codes are allowed' });
+      }
+    }
+
+    // Generate encrypted password
+    const encryptedPassword = generateEncryptedPassword();
+    console.log('Encrypted Password:', encryptedPassword);
+
+    // Create basic auth string
+    const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
+    console.log('Basic Auth:', basicAuth);
+
+    // Create headers for NSE API
+    const headers = {
+      'Content-Type': 'application/json',
+      'memberId': config.memberCode,
+      'Authorization': `BASIC ${basicAuth}`,
+      'Accept-Language': 'en-US',
+      'Referer': 'www.google.com',
+      'Connection': 'keep-alive',
+      'User-Agent': 'NSE-API-Client/1.0'
+    };
+
+    console.log('Making AOF Image Upload Report API request...');
+    console.log('URL:', `${config.url}/reports/AOF_IMAGE_UPLOAD_REPORT`);
+
+    // Create axios instance with TLS options
+    const instance = axios.create({
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
+      })
+    });
+
+    try {
+      // Make the AOF Image Upload Report API request
+      const reportResponse = await instance.post(
+        `${config.url}/reports/AOF_IMAGE_UPLOAD_REPORT`,
+        {
+          client_code,
+          from_date,
+          to_date
+        },
+        { headers }
+      );
+
+      console.log('AOF Report API Response Status:', reportResponse.status);
+      console.log('AOF Report API Response Data:', JSON.stringify(reportResponse.data, null, 2));
+
+      // Return the actual API response to the frontend
+      res.json({
+        success: true,
+        data: reportResponse.data
+      });
+    } catch (apiError) {
+      console.error('API Error:');
+      if (apiError.response) {
+        console.error('Status:', apiError.response.status);
+        console.error('Data:', apiError.response.data);
+        res.status(apiError.response.status).json({
+          success: false,
+          error: 'NSE API Error',
+          data: apiError.response.data
+        });
+      } else {
+        console.error('Error:', apiError.message);
+        res.status(500).json({
+          success: false,
+          error: apiError.message
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Server Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An error occurred while processing your request',
+      details: error.message
+    });
+  }
+});
+
+// FATCA Registration API
+app.post('/api/registration/FATCA_COMMON', async (req, res) => {
+  try {
+    const response = await makeNSERequest('/registration/FATCA_COMMON', req.body);
+    res.json(response.data);
+  } catch (error) {
+    handleAPIError(error, res);
+  }
+});
+
+// FATCA Report API
+app.post('/api/reports/FATCA_REPORT', async (req, res) => {
+  try {
+    const response = await makeNSERequest('/reports/FATCA_REPORT', req.body);
+    res.json(response.data);
+  } catch (error) {
+    handleAPIError(error, res);
+  }
+});
+
+// FATCA Image Upload API
+app.post('/api/fileupload/FATCAIMG', async (req, res) => {
+  try {
+    const response = await makeNSERequest('/fileupload/FATCAIMG', req.body);
+    res.json(response.data);
+  } catch (error) {
+    handleAPIError(error, res);
+  }
+});
+
 // Serve static files from the React app in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'client/build')));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
   });

@@ -8,15 +8,22 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 
-// Configuration (use environment variables in production)
+// Configuration (using environment variables)
 const config = {
     url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
-    loginUserId: 'ADMIN',
-    apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',
-    apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6',
-    memberCode: '1002516'
+    loginUserId: process.env.LOGIN_USER_ID,
+    apiKeyMember: process.env.API_KEY_MEMBER,
+    apiSecretUser: process.env.API_SECRET_USER,
+    memberCode: process.env.MEMBER_CODE
 };
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+    throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
 
 // Generate encrypted password as per NSE documentation
 const generateEncryptedPassword = () => {

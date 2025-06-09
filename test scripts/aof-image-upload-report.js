@@ -108,7 +108,7 @@ const testAofReportApi = async () => {
         });
 
         const response = await instance.post(
-            `${config.url}/reports/AOF_IMAGE_UPLODA_REPORT`,
+            `${config.url}/reports/AOF_IMAGE_UPLOAD_REPORT`,
             reportPayload,
             { headers }
         );

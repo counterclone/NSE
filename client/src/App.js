@@ -5,10 +5,13 @@ import SchemeSelector from './components/SchemeSelector';
 import OrderForm from './components/OrderForm';
 import ResponseDisplay from './components/ResponseDisplay';
 import UCCRegistrationForm from './components/UCCRegistrationForm';
+import UCCRegistration183Form from './components/UCCRegistration183Form';
 import OrderStatusReport from './components/OrderStatusReport';
 import OrderCancellation from './components/OrderCancellation';
 import SchemeMasterDownload from './components/SchemeMasterDownload';
 import DatabaseViewer from './components/DatabaseViewer';
+import AOFTabs from './components/AOFTabs';
+import FATCATabs from './components/FATCATabs';
 import api from './services/api';
 
 function App() {
@@ -17,7 +20,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('order'); // 'order', 'ucc', 'report', 'cancel', 'scheme', or 'database'
+  const [activeTab, setActiveTab] = useState('order'); // 'order', 'ucc', 'ucc183', 'report', 'cancel', 'scheme', 'database', 'aof', or 'fatca'
 
   // Add global functions to switch between tabs
   useEffect(() => {
@@ -69,12 +72,12 @@ function App() {
       setLoading(true);
       setError(null);
       setResponse(null);
-      
+
       const response = await api.submitOrder({
         schemeCode: selectedScheme.code,
         ...orderData
       });
-      
+
       setResponse(response.data);
       toast.success('Order submitted successfully');
     } catch (err) {
@@ -91,15 +94,34 @@ function App() {
       setLoading(true);
       setError(null);
       setResponse(null);
-      
+
       const response = await api.registerUCC(clientDetails);
-      
+
       setResponse(response.data);
       toast.success('UCC Registration submitted successfully');
     } catch (err) {
       console.error('UCC Registration failed:', err);
       setError(err.response?.data?.error || 'Failed to register UCC');
       toast.error('UCC Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitUCC183 = async (clientDetails) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setResponse(null);
+
+      const response = await api.registerUCC183(clientDetails);
+
+      setResponse(response.data);
+      toast.success('UCC Registration (183) submitted successfully');
+    } catch (err) {
+      console.error('UCC Registration (183) failed:', err);
+      setError(err.response?.data?.error || 'Failed to register UCC');
+      toast.error('UCC Registration (183) failed');
     } finally {
       setLoading(false);
     }
@@ -114,7 +136,7 @@ function App() {
   return (
     <div className="container mt-4">
       <ToastContainer position="top-right" autoClose={3000} />
-      
+
       <div className="row mb-4">
         <div className="col-12">
           <div className="card">
@@ -157,6 +179,30 @@ function App() {
                 </li>
                 <li className="nav-item">
                   <button
+                    className={`nav-link ${activeTab === 'ucc183' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('ucc183')}
+                  >
+                    UCC Registration (183)
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === 'aof' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('aof')}
+                  >
+                    AOF
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === 'fatca' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('fatca')}
+                  >
+                    FATCA
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
                     className={`nav-link ${activeTab === 'scheme' ? 'active' : ''}`}
                     onClick={() => handleTabChange('scheme')}
                   >
@@ -180,18 +226,18 @@ function App() {
       {activeTab === 'order' && (
         <div className="row">
           <div className="col-md-5">
-            <SchemeSelector 
-              schemes={schemes} 
-              loading={loading} 
+            <SchemeSelector
+              schemes={schemes}
+              loading={loading}
               error={error}
               onSchemeSelect={handleSchemeSelect}
               selectedScheme={selectedScheme}
             />
           </div>
-          
+
           <div className="col-md-7">
             {selectedScheme ? (
-              <OrderForm 
+              <OrderForm
                 scheme={selectedScheme}
                 onSubmit={handleSubmitOrder}
                 loading={loading}
@@ -218,8 +264,19 @@ function App() {
       {activeTab === 'ucc' && (
         <div className="row">
           <div className="col-12">
-            <UCCRegistrationForm 
+            <UCCRegistrationForm
               onSubmit={handleSubmitUCC}
+              loading={loading}
+            />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'ucc183' && (
+        <div className="row">
+          <div className="col-12">
+            <UCCRegistration183Form
+              onSubmit={handleSubmitUCC183}
               loading={loading}
             />
           </div>
@@ -233,7 +290,7 @@ function App() {
           </div>
         </div>
       )}
-      
+
       {activeTab === 'scheme' && (
         <div className="row">
           <div className="col-12">
@@ -241,7 +298,7 @@ function App() {
           </div>
         </div>
       )}
-      
+
       {activeTab === 'database' && (
         <div className="row">
           <div className="col-12">
@@ -249,8 +306,24 @@ function App() {
           </div>
         </div>
       )}
-      
-      {response && activeTab !== 'report' && activeTab !== 'cancel' && activeTab !== 'scheme' && activeTab !== 'database' && (
+
+      {activeTab === 'aof' && (
+        <div className="row">
+          <div className="col-12">
+            <AOFTabs />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'fatca' && (
+        <div className="row">
+          <div className="col-12">
+            <FATCATabs />
+          </div>
+        </div>
+      )}
+
+      {response && activeTab !== 'report' && activeTab !== 'cancel' && activeTab !== 'scheme' && activeTab !== 'database' && activeTab !== 'aof' && activeTab !== 'fatca' && (
         <div className="row mt-4">
           <div className="col-12">
             <ResponseDisplay response={response} />

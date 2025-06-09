@@ -9,15 +9,21 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const https = require('https');
+require('dotenv').config({ path: '.env.local' });
 
-// Configuration (use environment variables in production)
+// Configuration (using environment variables)
 const config = {
-  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2', 
-  loginUserId: 'ADMIN',   
-  apiKeyMember: '32CDDA112E2C5E1EE06332C911AC32B6',    
-  apiSecretUser: '32CDDA112E2D5E1EE06332C911AC32B6', 
-  memberCode: '1002516'         
+  url: 'https://nseinvestuat.nseindia.com/nsemfdesk/api/v2',
+  loginUserId: process.env.LOGIN_USER_ID,
+  apiKeyMember: process.env.API_KEY_MEMBER,
+  apiSecretUser: process.env.API_SECRET_USER,
+  memberCode: process.env.MEMBER_CODE
 };
+
+// Validate required environment variables
+if (!config.loginUserId || !config.apiKeyMember || !config.apiSecretUser || !config.memberCode) {
+  throw new Error('Missing required environment variables. Please check your .env.local file.');
+}
 
 // Generate encrypted password as per NSE documentation
 const generateEncryptedPassword = () => {
@@ -54,7 +60,7 @@ const testNseApi = async () => {
     // Generate encrypted password
     const encryptedPassword = generateEncryptedPassword();
     console.log('Encrypted Password:', encryptedPassword);
-    
+
     // Create basic auth string
     const basicAuth = Buffer.from(`${config.loginUserId}:${encryptedPassword}`).toString('base64');
     console.log('Basic Auth:', basicAuth);
@@ -69,9 +75,9 @@ const testNseApi = async () => {
       'Connection': 'keep-alive',
       'User-Agent': 'NSE-API-Client/1.0'
     };
-    
+
     console.log('Headers:', JSON.stringify(headers, null, 2));
-    
+
     // Sample payload for Order Entry (Purchase) Service API
     const orderPayload = {
       "transaction_details": [
@@ -109,24 +115,24 @@ const testNseApi = async () => {
 
     console.log('Making Order Entry API request...');
     console.log('URL:', `${config.url}/transaction/NORMAL`);
-    
+
     // Create axios instance with TLS options
     const instance = axios.create({
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // WARNING: This bypasses SSL verification - only use in controlled test environments
       })
     });
-    
+
     // Make the Order Entry API request
     const orderResponse = await instance.post(
       `${config.url}/transaction/NORMAL`,
       orderPayload,
       { headers }
     );
-    
+
     console.log('Order API Response Status:', orderResponse.status);
     console.log('Order API Response Data:', JSON.stringify(orderResponse.data, null, 2));
-    
+
   } catch (error) {
     console.error('API Error:');
     if (error.response) {
